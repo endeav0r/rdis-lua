@@ -1,0 +1,50 @@
+This repository is my collection of lua scripts which work with rdis
+http://github.com/endeav0r/rdis
+
+/********************************************************
+* INSTALLATION                                          *
+********************************************************/
+
+// REQUIREMENTS (in addition to rdis)
+    * luasocket
+    pacman -S lua51-socket
+
+// SET UP
+Create a file ~/.rdis.lua and add the following lines which will allow rdis to
+automatically include rdis-lua on startup:
+
+  -- change PATH_TO_RDIS_LUA to reflect your system
+  local PATH_TO_RDIS_LUA = '/my/path/to/rdis'
+  package.path = package.path .. ';' .. PATH_TO_RDIS_LUA .. '/?.lua'
+  dofile(PATH_TO_RDIS_LUA .. '/rdis.lua')
+
+/********************************************************
+* GDB REMOTE DEBUGGING                                  *
+********************************************************/
+
+// NOTES
+    This code is not suitable for trivial debugging. It is currently intended
+    for development purposes only.
+
+// SUPPORT PLATFORMS
+    The only "implemented" architecture is amd64. It has only been tested in
+    64-bit Arch Linux.
+
+// USAGE
+    gdb_remote(host, port, arch)
+        host -> hostname where gdbserver is running
+        port -> port gdbserver is running on
+        arch -> the string 'amd64' is currently the only supported value
+        returns: a gdb object.
+
+        This function will connect to gdbserver, fetch the executable gdbserver
+        is debugging (from /proc/pid), and then load it in rdis.
+
+    gdb object
+        gdb:registers()
+            returns: a table containing the register values. keys are register
+                     names {'rax', 'rbx' ...} and values are the values of
+                     those registers
+            Ex: for k,v in pairs(gdb:registers()) do print(k, v) end
+        gdb:step()
+            Steps the binary forward.
