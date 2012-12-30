@@ -36,11 +36,16 @@ end
 -- Gdb.make_packet (gdb)
 -- Gdb.close       (gdb)
 
--- Gdb.raw_query   (gdb, text)
--- Gdb.registers   (gdb)
--- Gdb.step        (gdb)
--- Gdb.thread_pid  (gdb)
--- Gdb.readfile    (gdb, filename)
+-- Gdb.raw_query      (gdb, text)
+-- Gdb.registers      (gdb)
+-- Gdb.step           (gdb)
+-- Gdb.thread_pid     (gdb)
+-- Gdb.readfile       (gdb, filename)
+
+--     offset and size should be strings, base16, no leading chars
+-- Gdb.readfileoffset (gdb, offset, size)
+-- Gdb.memory         (gdb, address, size)
+--     address and size should be uint64
 
 
 function Gdb.new (host, port, arch)
@@ -63,8 +68,10 @@ function Gdb.new (host, port, arch)
 
     gdb.sock = socket.tcp()
     if gdb.sock:connect(host, port) ~= 1 then
-        return nil, "could not connect to " .. host .. tostring(port)
+        return nil, "could not connect to " .. host .. ':' .. tostring(port)
     end
+
+    gdb.sock:settimeout(0)
     
     gdb.sock:send(gdb:make_packet("qSupported:"))
     gdb.supported = gdb:recv_packet()
@@ -81,14 +88,20 @@ function Gdb.recv_packet (gdb)
     end
     
     -- start be receiving data from the server
-    local tmp  = ''
+    local tmp  = {}
     local data = ''
     
     while true do
-        tmp = tmp .. gdb.sock:receive(1)
-        if tmp:match('$(.*)#..') ~= nil then
-            data = tmp:match('$(.*)#..')
-            break
+        local t, emsg, partial = gdb.sock:receive(8192)
+        if t then
+            table.insert(tmp, t)
+        elseif partial and #partial > 0 then
+            table.insert(tmp, partial)
+        else
+            data = table.concat(tmp):match('$(.*)#..')
+            if data ~= nil then
+                break
+            end
         end
     end
     
@@ -122,6 +135,7 @@ function Gdb.recv_packet (gdb)
             i = i + 1
         end
     end
+
     return result
 end
 
@@ -138,10 +152,6 @@ end
 function Gdb.close (gdb)
     gdb.sock:close()
 end
-
-
-
-
 
 
 function Gdb.raw_query (gdb, query)
@@ -207,6 +217,7 @@ function Gdb.thread_pid (gdb)
     return tonumber(digits, 16)
 end
 
+
 function Gdb.readlink (gdb, filename)
     if filename == nil then
         print('Gdb.readlink got nil filename')
@@ -223,8 +234,15 @@ function Gdb.readlink (gdb, filename)
     return nil
 end
 
+
 function Gdb.readfile (gdb, filename)
+    return gdb:readfileoffset(filename, '0', 'ffffff')
+end
+
+
+function Gdb.readfileoffset (gdb, filename, offset, size)
     local query = 'vFile:open:' .. stringtohex(filename) .. ',0,0'
+    print(query)
 
     local fd = gdb:raw_query(query)
     fd = fd:sub(2)
@@ -233,16 +251,73 @@ function Gdb.readfile (gdb, filename)
         return nil
     end
 
-    local file = gdb:raw_query('vFile:pread:' .. fd .. ',fffffff,0')
+    local query = 'vFile:pread:' .. fd .. ',' .. size .. ',' .. offset
+    local file = gdb:raw_query(query)
 
     gdb:raw_query('vFile:close:' .. fd)
 
     if file:sub(2,3) == '-1' then
-        print('filesize was -1')
+        print('filesize was -1, ' .. file)
         return nil
     end
 
     return file:match('F[%dabdef]-;(.*)')
+end
+
+
+function Gdb.memory (gdb, address, size)
+    local querysize = size
+    if querysize > uint64("0x2000") then
+        querysize = uint64("0x2000")
+    end
+
+    local query = 'm' .. tostring(address):sub(3) .. ','
+                      .. tostring(querysize):sub(3)
+    local result = gdb:raw_query(query)
+
+    if result:sub(1,1) == 'E' then
+        return nil
+    end
+
+    local result_tab = {}
+
+    local num0 = '0'
+    local num9 = '9'
+    local numa = 'a'
+    num0 = num0:byte(1)
+    num9 = num9:byte(1)
+    numa = numa:byte(1)
+
+    local i = 1
+    while i <= #result do
+        local c = 0
+        local b = result:byte(i)
+        if b >= num0 and b <= num9 then
+            c = (b - num0) * 16
+        else
+            c = (b - numa + 10) * 16
+        end
+        i = i + 1
+        b = result:byte(i)
+        if b >= num0 and b <= num9 then
+            c = c + (b - num0)
+        else
+            c = c + (b - numa + 10)
+        end
+        i = i + 1
+        table.insert(result_tab, string.char(c))
+    end
+
+    local result = table.concat(result_tab)
+    if uint64(#result) < size then
+        local append = gdb:memory(address + (uint64(#result)),
+                                  size - (uint64(#result)))
+        if append ~= nil then
+            result = result .. append
+        end
+    end
+
+    return result
 end
 
 return Gdb

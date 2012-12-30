@@ -57,5 +57,44 @@ function gdb_remote(host, port, arch)
         return nil
     end
 
+    gdb_remote_update_mem(gdb)
+
     return gdb
+end
+
+
+function gdb_remote_update_mem (gdb)
+    local filename = '/proc/' .. tostring(gdb.pid) .. '/maps'
+    local maps = gdb:readfile(filename)
+    local tofetch = {}
+    for line in string.gmatch(maps, '(.-)\n') do
+        local low  = line.match(line, '([%dabcdef]+).*')
+        local high = line.match(line, '.-%-([%dabcdef]+).*')
+
+        low  = uint64('0x' .. low)
+        high = uint64('0x' .. high)
+        local size = high - low
+        if size ~= uint64(0) then
+            tofetch[low] = size
+        end
+    end
+
+    maps = {}
+    local filename = '/proc/' .. tostring(gdb.pid) .. '/mem'
+    for base,size in pairs(tofetch) do
+        base_str = tostring(base):sub(3)
+        size_str = tostring(size):sub(3)
+
+        local bytes = gdb:readfileoffset(filename, base_str, size_str)
+        if bytes == nil then
+            bytes = gdb:memory(base, size)
+        end
+        if bytes == nil then
+            rdis.console('failed fetching mem at ' .. tostring(base))
+        else
+            print(type(base))
+            print(type(bytes))
+            rdis.poke(base, bytes)
+        end
+    end
 end
