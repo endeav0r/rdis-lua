@@ -47,6 +47,10 @@ end
 -- Gdb.memory         (gdb, address, size)
 --     address and size should be uint64
 
+-- Gdb.add_breakpoint    (gdb, address) -- address = uint64
+-- Gdb.remote_breakpoint (gdb, address) -- address = uint64
+-- Gdb.continue          (gdb)
+
 
 function Gdb.new (host, port, arch)
     local supported = false
@@ -65,6 +69,8 @@ function Gdb.new (host, port, arch)
     setmetatable(gdb, Gdb)
     
     gdb.arch = arch
+    gdb.architecture = architectures[arch]
+    gdb.breakpoints = {}
 
     gdb.sock = socket.tcp()
     if gdb.sock:connect(host, port) ~= 1 then
@@ -319,5 +325,48 @@ function Gdb.memory (gdb, address, size)
 
     return result
 end
+
+
+function Gdb.add_breakpoint (gdb, address)
+    -- search breakpoints to see if this breakpoint already exists
+    for k,v in pairs(gdb.breakpoints) do
+        if v == address then
+            return
+        end
+    end
+
+    table.insert(gdb.breakpoints, address)
+end
+
+
+function Gdb.remove_breakpoint (gdb, address)
+    local position = nil
+    for k,v in pairs(gdb.breakpoints) do
+        if v == address then
+            position = k
+            break
+        end
+    end
+
+    if position ~= nil then
+        table.remove(gdb.breakpoints, position)
+    end
+end
+
+
+function Gdb.continue (gdb)
+    -- set all breakpoints
+    for k,address in pairs(gdb.breakpoints) do
+        gdb:raw_query('Z0:' .. tostring(address) .. ',1')
+    end
+
+    local result = gdb:raw_query('vCont;c')
+
+    -- unset all breakpoints
+    for k,address in pairs(gdb.breakpoints) do
+        gdb:raw_query('z0:' .. tostring(address) .. ',1')
+    end
+end
+
 
 return Gdb

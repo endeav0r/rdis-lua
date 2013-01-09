@@ -6,10 +6,19 @@ http://github.com/endeav0r/rdis
 ********************************************************/
 
 // REQUIREMENTS (in addition to rdis)
+/////////////////////////////////////
+
     * luasocket
+    * lgi ----- https://github.com/pavouk/lgi
     pacman -S lua51-socket
 
+For lgi, I recommend you grab sources and build for your machine. While LGI is
+in the Arch Linux package repos, lgi in the repos is for lua5.2. You will need
+to build for lua 5.1.
+
+
 // SET UP
+/////////////////////////////////////
 Create a file ~/.rdis.lua and add the following lines which will allow rdis to
 automatically include rdis-lua on startup:
 
@@ -31,6 +40,7 @@ automatically include rdis-lua on startup:
     64-bit Arch Linux.
 
 // USAGE
+    gdb_gui(host, port, arch)
     gdb_remote(host, port, arch)
         host -> hostname where gdbserver is running
         port -> port gdbserver is running on
@@ -38,13 +48,5 @@ automatically include rdis-lua on startup:
         returns: a gdb object.
 
         This function will connect to gdbserver, fetch the executable gdbserver
-        is debugging (from /proc/pid), and then load it in rdis.
-
-    gdb object
-        gdb:registers()
-            returns: a table containing the register values. keys are register
-                     names {'rax', 'rbx' ...} and values are the values of
-                     those registers
-            Ex: for k,v in pairs(gdb:registers()) do print(k, v) end
-        gdb:step()
-            Steps the binary forward.
+        is debugging (from /proc/pid), and then load it in rdis. It also spawns
+        a gui for you to work with
