@@ -1,0 +1,3 @@
+[submodule "ljsyscall"]
+	path = ljsyscall
+	url = git://github.com/justincormack/ljsyscall.git

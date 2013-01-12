@@ -20,15 +20,19 @@ end
 
 
 function gdb_gui_continue ()
-    rdis.console("continuing...")
     GDB_GUI.gdb:continue()
     gdb_gui_set_registers()
 end
 
 
+function gdb_gui_kill ()
+    GDB_GUI.gdb:kill()
+end
+
+
 function gdb_gui_add_breakpoint ()
     local button = Gtk.Button { label = "Add Breakpoint" }
-    local entry = Gtk.Entry {}
+    local entry  = Gtk.Entry {}
     local window = Gtk.Window {
         title = "Add Breakpoint",
         default_width = 200,
@@ -116,6 +120,11 @@ function gdb_gui(host, port, arch)
         on_clicked = gdb_gui_continue
     }
 
+    gui.killButton = Gtk.Button {
+        label = "Kill",
+        on_clicked = gdb_gui_kill
+    }
+
     gui.registerColumn = {
         NAME  = 1,
         VALUE = 2
@@ -183,6 +192,7 @@ function gdb_gui(host, port, arch)
     gui.buttonBox:add(gui.updateMemoryButton)
     gui.buttonBox:add(gui.addBreakpointButton)
     gui.buttonBox:add(gui.continueButton)
+    gui.buttonBox:add(gui.killButton)
 
     gui.hbox:add(gui.buttonBox)
     gui.hbox:add(gui.registerWindow)

@@ -41,6 +41,7 @@ end
 -- Gdb.step           (gdb)
 -- Gdb.thread_pid     (gdb)
 -- Gdb.readfile       (gdb, filename)
+-- Gdb.kill           (gdb)
 
 --     offset and size should be strings, base16, no leading chars
 -- Gdb.readfileoffset (gdb, offset, size)
@@ -241,6 +242,11 @@ function Gdb.readlink (gdb, filename)
 end
 
 
+function Gdb.kill (gdb)
+    gdb.sock:send(gdb:make_packet('k'))
+end
+
+
 function Gdb.readfile (gdb, filename)
     return gdb:readfileoffset(filename, '0', 'ffffff')
 end
@@ -365,6 +371,30 @@ function Gdb.continue (gdb)
     -- unset all breakpoints
     for k,address in pairs(gdb.breakpoints) do
         gdb:raw_query('z0:' .. tostring(address) .. ',1')
+    end
+
+    -- ip = ip - breakpoint
+    if gdb.arch == 'amd64' then
+        -- tried GDB RSP command P=10, it was a nogo
+        local regstr = gdb:raw_query('g')
+        print(regstr)
+        local pre    = regstr:sub(1, 16*16)
+        local rip    = regstr:sub(16*16 + 1, 16*17)
+        local post   = regstr:sub(16*17 + 1)
+
+        -- swap endianness by reordering string
+        rip =    rip:sub(15,16) .. rip:sub(13,14) .. rip:sub(11,12) .. rip:sub(9,10)
+              .. rip:sub(7, 8)  .. rip:sub(5, 6)  .. rip:sub(3, 4)  .. rip:sub(1, 2)
+        local ripnum = uint64('0x' .. rip)
+        ripnum = ripnum - uint64(1)
+        rip = tostring(ripnum):sub(3)
+        rip =    rip:sub(15,16) .. rip:sub(13,14) .. rip:sub(11,12) .. rip:sub(9,10)
+              .. rip:sub(7, 8)  .. rip:sub(5, 6)  .. rip:sub(3, 4)  .. rip:sub(1, 2)
+
+        while #rip < 16 do
+            rip = rip .. '0'
+        end
+        gdb:raw_query('G' .. pre .. rip .. post)
     end
 end
 
